@@ -1,0 +1,292 @@
+---
+title: "What can we know from the change of Rock Music lyrics?"
+author: "Ziyun Liu"
+date: "2/5/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<center>
+![Source:google](../figs/RNR pic.jpg)
+</center>
+
+## Introduction
+Rock music is a broad genre of popular music that originated as "rock and roll" in the United States in the early 1950s, and developed into a range of different styles in the 1960s and later (Studwell, 2014). People may like or dislike Rock music, but we must say that Rock is a well-known music genre and were once extremely popular. However, The 2010s saw a slow decline in Rock music, being usurped by hip-hop as the most popular genre in the United States. Now, I want to know is it a fact? and is there any relationship between the trend and the lyrics of Rock music.
+
+```{r import data, echo=FALSE}
+load('../output/processed_lyrics.RData')
+artists <- read.csv('../data/artists.csv')
+```
+
+```{r load library, echo=FALSE, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(ggplot2)
+library(tm)
+library(SnowballC)
+library(wordcloud)
+library(RColorBrewer)
+library(tidytext)
+library(janeaustenr)
+library(dplyr)
+library(stringr)
+library(syuzhet)
+```
+
+## The Popularity of Rock Music
+After preparing all the data and loading the package that I need, I will explore the data to see the trend of Rock music first. I just use the song after 1970 since there are only few songs before 1970.
+
+### How dose the propotion of Rock music to other genres change between 1970 and 2016?
+
+```{r percentage of Rock, echo=FALSE, message = FALSE, warning = FALSE}
+#compute the percentage of Rock in each year
+lyric_percent <- dt_lyrics %>% 
+  filter(year >= 1970)%>%
+  mutate(genre = ifelse(genre=="Rock","Rock", "Other_Genres"))%>%
+  group_by(year, genre) %>% 
+  summarise(total_per_year = n())
+  
+#The plot of percentage of Rock
+ggplot(lyric_percent, aes(x=year, y=total_per_year, fill=genre)) +
+  geom_bar(position="fill", stat="identity")+
+  labs(y = "percent",
+      title = "Bar Plot of Rock Percentage of All Genres")+
+  theme_light()
+
+```
+According to the Bar Plot, we could see the propotion of Rock music in all genres from 1970 to 2016. It shows that there are some high-points around 75% in 1973, 1982, 1990 and so on.However, after 2000, the propotion never goes to the higt-points again. The bar chart still can't show a clear trend because of the fluctuation in each year, so I'm going to do a linear trend in scatterplot.
+
+```{r percentage of Rock 2, echo=FALSE, message = FALSE, warning = FALSE}
+#compute the percentage of Rock in each year
+lyric_percent2 <- lyric_percent %>% 
+  pivot_wider(names_from = genre, values_from = total_per_year)%>%
+  mutate(percent = Rock/(Other_Genres+Rock))
+  
+#The plot of percentage of Rock
+ggplot(lyric_percent2, aes(x=year, y=percent)) + 
+  geom_point(color="turquoise3") +
+  geom_smooth(method=lm , color="tomato3", fill="turquoise3", se=TRUE)+
+  labs(y = "percent of Rock music",
+      title = "Linear trend of Rock Percentage With Confidence Interval")+
+  theme_light()
+
+```
+
+Base on the linear trend of the propotion, we could find a declined trend clearly, and around 2000, the line goes down the 50%. From these two plots, I believe the popularity of Rock music is fading, so I will compare the lyrics of Rock music before and after 2000 to see the influence of words of songs.
+
+
+## The influence of lyric on Rock music
+Some people believe that Rock music is Devil's music, which is wild and makes people crazy. However, some other people hold the opposite view - they think the Rock music could cool peopl down and call for the deep thought. These different view are not just caused by the melody of songs but also from the lyrics. Now, I will discuss the influence of lyric on Rock music from two big parts - words and topics.
+
+### Word count
+First, I got the average words count of Rock songs for each year to see the influence of lyric length.
+
+```{r word count, echo=FALSE, message = FALSE, warning = FALSE}
+#Word count
+lyrics_word <- dt_lyrics%>%
+  filter(year >= 1970)%>%
+  mutate(length = str_count(lyrics,"\\S+"))%>%
+  filter(genre == "Rock")%>%
+  group_by(year)%>%
+  summarise(length = mean(length))
+
+ggplot(lyrics_word, aes(x=year, y=length)) +
+  geom_line(color = "gray") +
+  geom_point(shape=21, color="gray", fill="turquoise3", size=2)+
+  labs(x = "average words",
+       title = "Change of word count over years")+
+  theme_light()
+```
+
+After plotting the data into a connected scatterplot, I can't get a clear trend since most data is around 200 and fluctuates in the smooth. However, the tail goes a little bit up after 2000, so we might conclude that less words in the lyric will make people more like it. However, since there is no more evidence to support it, there is still no relation between lyric length and popularity of Rock music.
+
+### Frequent words
+Although the length of lyric didn't show us a clear trend, we can think about about each single word in the lyric, and I want to know that did the frequent words using in Rock lyrics change over these years.
+
+**Figure 1: Frequent words in Rock lyrics from 1970 to 1999**
+```{r Frequent words 1970-1999, echo=FALSE, message = FALSE, warning = FALSE}
+#Get the lyric for Rock music before 2000
+lyrics_1970 <- dt_lyrics%>%
+  filter(genre == "Rock",
+         year < 2000)
+
+text_1970 <- lyrics_1970$stemmedwords
+
+#Load the data as a corpus
+docs_1970 <- Corpus(VectorSource(text_1970))
+
+#Build a term-document matrix
+#Ref: http://www.sthda.com/english/wiki/text-mining-and-word-cloud-fundamentals-in-r-5-simple-steps-you-should-know
+dtm1 <- TermDocumentMatrix(docs_1970)
+m1 <- as.matrix(dtm1)
+v1 <- sort(rowSums(m1),decreasing=TRUE)
+d1 <- data.frame(word = names(v1),freq=v1)
+
+#Word cloud
+wordcloud(d1$word, d1$freq, max.words=100, random.order=FALSE, col=brewer.pal(n = 8, name = "RdBu"), rot.per=0.3)
+```
+
+
+**Figure 2: Frequent words in Rock lyrics after 2000**
+```{r Frequent words 2000s, echo=FALSE, message = FALSE, warning = FALSE}
+#Get the lyric for Rock music after 2000
+lyrics_2000 <- dt_lyrics%>%
+  filter(genre == "Rock",
+         year >= 2000)
+
+text_2000 <- lyrics_2000$stemmedwords
+
+#Load the data as a corpus
+docs_2000 <- Corpus(VectorSource(text_2000))
+
+#Build a term-document matrix
+dtm2 <- TermDocumentMatrix(docs_2000)
+m2 <- as.matrix(dtm2)
+v2 <- sort(rowSums(m2),decreasing=TRUE)
+d2 <- data.frame(word = names(v2),freq=v2)
+
+#Word cloud
+wordcloud(d2$word, d2$freq, max.words=100, random.order=FALSE, col=brewer.pal(n = 8, name = "YlOrRd"), rot.per=0.3)
+```
+
+Initially, I cleaned up the lyrics data and use the wordcloud package to get the frequent words using before and after 2000. Based on the figure 1 and figure 2, the top 3 using words before 2000 are "love", "your", and "time", and they are same as the words after 2000. There is almost no changing of the frequent words during these years. For the accuracy of analysis, I picked the years with high-points and did the wordcloud analysis again, shown as below:
+
+**Figure 3: Frequent words in Rock lyrics after in 1973, 1982, 1989, 1990 and 1997**
+```{r Frequent words 1973, 1982, 1989,1990, 1997, echo=FALSE, message = FALSE, warning = FALSE}
+#Get the lyric for Rock music before 2000
+lyrics_most <- dt_lyrics%>%
+  filter(genre == "Rock",
+         year %in% c(1973, 1982, 1989,1990, 1997))
+
+text_most <- lyrics_most$stemmedwords
+
+#Load the data as a corpus
+docs_most <- Corpus(VectorSource(text_most))
+
+#Build a term-document matrix
+dtm3 <- TermDocumentMatrix(docs_most)
+m3 <- as.matrix(dtm3)
+v3 <- sort(rowSums(m3),decreasing=TRUE)
+d3 <- data.frame(word = names(v3),freq=v3)
+
+#Word cloud
+wordcloud(d3$word, d3$freq, max.words=100, random.order=FALSE, col=terrain.colors(length(d3$word), alpha=0.9), rot.per=0.3)
+```
+
+The frequent words are still not changed. Base on my analysis, the word of the lyrics is not a big part of the influence on the popularity of Rock music. However, althought they use the same words over these years, but the emotion of using the words may be changed.
+
+### Sentiments analysis
+"Love", the most frequently using words in Rock music, can have emotion. Let’s address the topic of opinion mining or sentiment analysis.
+
+```{r Sentiments analysis, echo=FALSE, message = FALSE, warning = FALSE}
+#prepare for sentiment
+#get the words out from stemmedwords(the lyrics that have been cleaned)
+lyrics_sen <- dt_lyrics%>%
+  filter(genre == "Rock")%>%
+  mutate(stemmedwords = as.character(stemmedwords))%>%
+  unnest_tokens(word,stemmedwords)
+
+#count the words for each songs
+count <- lyrics_sen %>% 
+  count(song)
+
+lyrics_sen <- lyrics_sen %>%
+  left_join(count, by = "song") %>% 
+  rename(total_words=n)
+
+#Get the total number for neagtive and positive for each year
+#Ref: https://www.tidytextmining.com/sentiment.html
+lyrics_sentiment <- lyrics_sen %>%
+  inner_join(get_sentiments("bing")) %>%
+  mutate(years = ifelse(year>=2000, "2000s", "1970-1999"))%>%
+  group_by(years, id)%>%
+  count(sentiment) %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative)%>%
+  mutate(mycolor = ifelse(sentiment>0, "type1", "type2"))
+
+lyrics_sentiment_1970<-lyrics_sentiment%>%
+  filter(years =="1970-1999")%>%
+  rowid_to_column("index")
+
+lyrics_sentiment_2000<-lyrics_sentiment%>%
+  filter(years=="2000s")%>%
+  rowid_to_column("index")
+
+#Plot the sentiments of the lyrics
+ggplot(lyrics_sentiment_1970, aes(index, sentiment)) +
+  geom_segment(aes(x=index, xend=index, y=0, yend=sentiment, color=mycolor), size=0.9, alpha=0.9) +
+  theme_light() +
+  theme(
+    legend.position = "none",
+    panel.border = element_blank(),
+  )+
+  labs(title = "Positive or negative? between 1970 to 1999")
+
+ggplot(lyrics_sentiment_2000, aes(index, sentiment)) +
+  geom_segment( aes(x=index, xend=index, y=0, yend=sentiment, color=mycolor), size=0.3, alpha=0.9) +
+  theme_light() +
+  theme(
+    legend.position = "none",
+    panel.border = element_blank(),
+  ) +
+  labs(title = "Positive or negative? after 2000")
+```
+
+I used the tidytext package, which contains several sentiment lexicons as "bing" from Bing Liu and collaborators to categorizes words into positive and negative categories. Then, I have negative and positive sentiment in separate columns and calculate a net sentiment (positive - negative). Plot the net sentiment to trend positivity or negativity of the lyric. As the plot show above, the negative scores seem to go higher after 2000 than before, but the positive scores don't change a lot. That shows us that people don't really like some negative lyrics now, or maybe Rock music lyrics after 2000 are too negative so that more people choose to listen to other genres. 
+
+### Emotion
+Now, Let's talk about emotion of the lyrics.
+
+```{r Emotion, echo=FALSE, message = FALSE, warning = FALSE}
+#Getting the sentiment value for the lyrics
+lyrics_EM_1970<- dt_lyrics%>%
+  filter(genre == "Rock",
+         year<2000)
+emotion <- get_nrc_sentiment(lyrics_EM_1970$stemmedwords)
+
+#Dataframe with cumulative value of the sentiments
+emotion_1970 <- emotion%>%
+  summarize_if(is.numeric, sum, na.rm=TRUE)%>%
+  pivot_longer(everything(), names_to = "emotion", values_to = "score")%>%
+  mutate(year = "1970-1999")
+
+#Getting the sentiment value for the lyrics
+lyrics_EM_2000<- dt_lyrics%>%
+  filter(genre == "Rock",
+         year>=2000)
+emotion1 <- get_nrc_sentiment(lyrics_EM_2000$stemmedwords)
+
+#Dataframe with cumulative value of the sentiments
+emotion_2000 <- emotion1%>%
+  summarize_if(is.numeric, sum, na.rm=TRUE)%>%
+  pivot_longer(everything(), names_to = "emotion", values_to = "score")%>%
+  mutate(year = "2000s")
+
+#Combine dataframe
+emotion_final<-rbind(emotion_1970,emotion_2000)
+
+#Plot
+ggplot(emotion_final, aes(fill=year, y=score, x=emotion)) + 
+    geom_bar(position="dodge", stat="identity") +
+    facet_grid(year~., scales = "free_y")  
+
+
+```
+
+I used the "syuzhet" package to get the emotion values for the lyrics, and then plot them out. Although the two plots looks similiar, we could compare them by pairs. First, for fear and joy, during 1970 to 1999, the emotion of joy, which is positive emotion, is higher than fear. But after 2000, fear score exceeds joy's. Negative emotion also goes over the positive emotion after 2000. These chart really support our idea before.
+
+## Conclusion
+Base on the analysis of Rock music trend and its relation with the lyrics, we can get following ideas:  
+1. Rock music really goes downhill from 2010s or may be earlier. This decline may be caused by the rise of other genres, but we will also find out some reasons from these Rock songs.   
+2. People may prefer the Rock music with short lyrics, but base on the analysis, the length of lyrics does not really matter. 
+3. The frequent words that Rock music uses during these years do not change a lot.
+4. The emotion of Rock music goes negatively after 2000, but that doesn't bring them more listeners.
+
+
+## References
+Studwell, W. E., & Lonergan, D. (2014). Classic Rock and Roll Reader Rock Music from Its Beginnings to the Mid-1970s. Florence: Taylor and Francis.
+
+
